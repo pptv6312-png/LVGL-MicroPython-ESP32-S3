@@ -2,6 +2,10 @@ name: LVGL_MicroPython For ESP32
 
 on:
   workflow_dispatch:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 env:
   LVGL: lvgl_micropython
@@ -17,13 +21,18 @@ jobs:
       fail-fast: false
       matrix:
         info:
-          - '{ "BOARD": "ESP32_GENERIC",     "BOARD_VARIANT": "SPIRAM",      "FLASH": "4",   "DISPLAY": "ILI9341",  "INDEV":"FT6X36" }'
-          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "8",   "DISPLAY": "ILI9341",  "INDEV":"FT6X36" }'
-          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "16",  "DISPLAY": "ILI9341",  "INDEV":"FT6X36" }'
-    
+          - '{ "BOARD": "ESP32_GENERIC",     "BOARD_VARIANT": "SPIRAM",      "FLASH": "4",   "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
+          - '{ "BOARD": "ESP32_GENERIC",     "BOARD_VARIANT": "SPIRAM",      "FLASH": "8",   "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
+          - '{ "BOARD": "ESP32_GENERIC",     "BOARD_VARIANT": "SPIRAM",      "FLASH": "16",  "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
+          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "4",   "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
+          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "8",   "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
+          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "16",  "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
+          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "8",   "DISPLAY": "ILI9341", "INDEV":"FT6X36" }'
+          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "16",  "DISPLAY": "ILI9341", "INDEV":"FT6X36" }'
+
     steps:
       - name: Checkout
-        uses: actions/checkout@main
+        uses: actions/checkout@v4
 
       - name: Initialization environment
         run: |
@@ -32,62 +41,118 @@ jobs:
           sudo apt-get install -y git wget flex bison gperf python3 python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 python-is-python3 pip
           sudo timedatectl set-timezone "${{env.TZ}}"
 
-      - name: Clone LVGL
+      - name: Clone LVGL with submodules
         run: |
-          git clone --depth=1 ${{env.LVGL_REPO}} ${{env.LVGL}}
+          git clone --recursive --depth=1 ${{env.LVGL_REPO}} ${{env.LVGL}}
+
+      - name: Check driver files
+        run: |
+          cd ${{env.LVGL}}
+          echo "Checking project structure..."
+          echo "Available display drivers:"
+          find . -path "*/display/*.py" -type f | grep -v __pycache__ | head -10 || true
+          echo ""
+          echo "Available touch drivers:"
+          find . -path "*indev/*.py" -type f | grep -v __pycache__ | head -10 || true
 
       - name: Compile the firmware
         id: compile
         run: |
           cd ${{env.LVGL}}
-          if ["${{fromJSON(matrix.info).INDEV}}" == ""]; then
-            if ["${{fromJSON(matrix.info).FLASH}}" == "4"]; then
-              echo "python3 make.py esp32 BOARD=${{fromJSON(matrix.info).BOARD}} BOARD_VARIANT=${{fromJSON(matrix.info).BOARD_VARIANT}} --flash-size=${{fromJSON(matrix.info).FLASH}} --optimize-size DISPLAY=${{fromJSON(matrix.info).DISPLAY}}"
-              python3 make.py esp32 BOARD=${{fromJSON(matrix.info).BOARD}} BOARD_VARIANT=${{fromJSON(matrix.info).BOARD_VARIANT}} --flash-size=${{fromJSON(matrix.info).FLASH}} DISPLAY=${{fromJSON(matrix.info).DISPLAY}}
-            else
-              echo "python3 make.py esp32 BOARD=${{fromJSON(matrix.info).BOARD}} BOARD_VARIANT=${{fromJSON(matrix.info).BOARD_VARIANT}} --flash-size=${{fromJSON(matrix.info).FLASH}} DISPLAY=${{fromJSON(matrix.info).DISPLAY}}"
-              python3 make.py esp32 BOARD=${{fromJSON(matrix.info).BOARD}} BOARD_VARIANT=${{fromJSON(matrix.info).BOARD_VARIANT}} --flash-size=${{fromJSON(matrix.info).FLASH}} DISPLAY=${{fromJSON(matrix.info).DISPLAY}}
-            fi
-            echo "FIREMWARE=LVGL_MicroPython-${{fromJSON(matrix.info).BOARD}}_${{fromJSON(matrix.info).BOARD_VARIANT}}_N${{fromJSON(matrix.info).FLASH}}_${{fromJSON(matrix.info).DISPLAY}}-$(date +"%Y%m%d%H%M").bin" >> $GITHUB_ENV
+          
+          # 设置构建命令
+          if [ "${{fromJSON(matrix.info).FLASH}}" = "4" ]; then
+            OPTIMIZE="--optimize-size"
           else
-            if ["${{fromJSON(matrix.info).FLASH}}" == "4"]; then
-              echo "python3 make.py esp32 BOARD=${{fromJSON(matrix.info).BOARD}} BOARD_VARIANT=${{fromJSON(matrix.info).BOARD_VARIANT}} --flash-size=${{fromJSON(matrix.info).FLASH}} --optimize-size DISPLAY=${{fromJSON(matrix.info).DISPLAY}} INDEV=${{fromJSON(matrix.info).INDEV}}"
-              python3 make.py esp32 BOARD=${{fromJSON(matrix.info).BOARD}} BOARD_VARIANT=${{fromJSON(matrix.info).BOARD_VARIANT}} --flash-size=${{fromJSON(matrix.info).FLASH}} DISPLAY=${{fromJSON(matrix.info).DISPLAY}} INDEV=${{fromJSON(matrix.info).INDEV}}
-            else
-              echo "python3 make.py esp32 BOARD=${{fromJSON(matrix.info).BOARD}} BOARD_VARIANT=${{fromJSON(matrix.info).BOARD_VARIANT}} --flash-size=${{fromJSON(matrix.info).FLASH}} DISPLAY=${{fromJSON(matrix.info).DISPLAY}} INDEV=${{fromJSON(matrix.info).INDEV}}"
-              python3 make.py esp32 BOARD=${{fromJSON(matrix.info).BOARD}} BOARD_VARIANT=${{fromJSON(matrix.info).BOARD_VARIANT}} --flash-size=${{fromJSON(matrix.info).FLASH}} DISPLAY=${{fromJSON(matrix.info).DISPLAY}} INDEV=${{fromJSON(matrix.info).INDEV}}
-            fi
-            echo "FIREMWARE=LVGL_MicroPython-${{fromJSON(matrix.info).BOARD}}_${{fromJSON(matrix.info).BOARD_VARIANT}}_N${{fromJSON(matrix.info).FLASH}}_${{fromJSON(matrix.info).DISPLAY}}_${{fromJSON(matrix.info).INDEV}}-$(date +"%Y%m%d%H%M").bin" >> $GITHUB_ENV
+            OPTIMIZE=""
           fi
+          
+          # 构建命令
+          CMD="python3 make.py esp32 \
+            BOARD=${{fromJSON(matrix.info).BOARD}} \
+            BOARD_VARIANT=${{fromJSON(matrix.info).BOARD_VARIANT}} \
+            --flash-size=${{fromJSON(matrix.info).FLASH}} \
+            $OPTIMIZE \
+            DISPLAY=${{fromJSON(matrix.info).DISPLAY}}"
+          
+          # 如果有输入设备，添加 INDEV 参数
+          if [ -n "${{fromJSON(matrix.info).INDEV}}" ] && [ "${{fromJSON(matrix.info).INDEV}}" != "null" ]; then
+            CMD="$CMD INDEV=${{fromJSON(matrix.info).INDEV}}"
+          fi
+          
+          echo "Running: $CMD"
+          $CMD || (echo "Build failed, checking for errors..." && exit 1)
+          
+          # 设置输出变量
+          echo "FIREMWARE=LVGL_MicroPython-${{fromJSON(matrix.info).BOARD}}_${{fromJSON(matrix.info).BOARD_VARIANT}}_N${{fromJSON(matrix.info).FLASH}}_${{fromJSON(matrix.info).DISPLAY}}_${{fromJSON(matrix.info).INDEV}}-$(date +"%Y%m%d%H%M").bin" >> $GITHUB_ENV
           echo "OUTPUT=${{env.LVGL}}/build" >> $GITHUB_ENV
-          echo "FIREMWARE_ORIGIN=lvgl_micropy_${{fromJSON(matrix.info).BOARD}}-${{fromJSON(matrix.info).BOARD_VARIANT}}-${{fromJSON(matrix.info).FLASH}}.bin" >> $GITHUB_ENV
+          
+          # 查找实际的固件文件
+          FIRMWARE_PATTERN="lvgl_micropy_${{fromJSON(matrix.info).BOARD}}-${{fromJSON(matrix.info).BOARD_VARIANT}}*.bin"
+          ACTUAL_FIRMWARE=$(find ${{env.LVGL}}/build -name "$FIRMWARE_PATTERN" -type f | head -1)
+          
+          if [ -n "$ACTUAL_FIRMWARE" ]; then
+            echo "Found firmware: $ACTUAL_FIRMWARE"
+            echo "FIREMWARE_ORIGIN=$(basename $ACTUAL_FIRMWARE)" >> $GITHUB_ENV
+            echo "FIRMWARE_PATH=$ACTUAL_FIRMWARE" >> $GITHUB_ENV
+          else
+            echo "ERROR: Firmware file not found with pattern: $FIRMWARE_PATTERN"
+            ls -la ${{env.LVGL}}/build/
+            exit 1
+          fi
+          
           echo "status=success" >> $GITHUB_OUTPUT
           echo "COMPILE_DATE=$(date +"%Y%m%d")" >> $GITHUB_ENV
 
-      - name: Organize compiled firmware
+      - name: Rename firmware file
         if: steps.compile.outputs.status == 'success' && !cancelled()
         run: |
-          mv ${{env.OUTPUT}}/${{env.FIREMWARE_ORIGIN}} ${{env.OUTPUT}}/${{env.FIREMWARE}}
+          cd ${{env.LVGL}}/build
+          echo "Renaming firmware file..."
+          echo "From: ${{env.FIREMWARE_ORIGIN}}"
+          echo "To: ${{env.FIREMWARE}}"
+          
+          if [ -f "${{env.FIREMWARE_ORIGIN}}" ]; then
+            mv "${{env.FIREMWARE_ORIGIN}}" "${{env.FIREMWARE}}"
+            echo "✅ Rename successful"
+            echo "File size: $(stat -c%s "${{env.FIREMWARE}}") bytes"
+          else
+            echo "❌ Original firmware file not found"
+            ls -la
+            exit 1
+          fi
 
-      - name: Upload firmware to release
+      - name: Upload firmware as artifact
         if: steps.compile.outputs.status == 'success' && !cancelled()
-        uses: svenstaro/upload-release-action@v2
+        uses: actions/upload-artifact@v4
         with:
-          repo_token: ${{secrets.GITHUB_TOKEN}}
-          file: ${{env.OUTPUT}}/${{env.FIREMWARE}}
-          asset_name: ${{env.FIREMWARE}}
-          tag: LVGL_MicroPython-${{env.COMPILE_DATE}}
-          body: |
-            ### LVGL & MicroPython Firmware For ESP32
-            [LVGL_MicroPython](https://github.com/lvgl-micropython/lvgl_micropython)  
-          overwrite: true
+          name: ${{env.FIREMWARE}}
+          path: ${{env.LVGL}}/build/${{env.FIREMWARE}}
+          retention-days: 30
 
-  Delete_Workflow:
-    needs: [ LVGL_MicroPython-ESP32 ]
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Delete workflow runs
-        uses: Mattraks/delete-workflow-runs@main
+      - name: Create build summary
+        if: always()
+        run: |
+          echo "## Build Summary" > build_summary.md
+          echo "### Configuration" >> build_summary.md
+          echo "- Board: ${{fromJSON(matrix.info).BOARD}}" >> build_summary.md
+          echo "- Variant: ${{fromJSON(matrix.info).BOARD_VARIANT}}" >> build_summary.md
+          echo "- Flash Size: ${{fromJSON(matrix.info).FLASH}}MB" >> build_summary.md
+          echo "- Display Driver: ${{fromJSON(matrix.info).DISPLAY}}" >> build_summary.md
+          echo "- Touch Driver: ${{fromJSON(matrix.info).INDEV}}" >> build_summary.md
+          echo "- Build Date: $(date)" >> build_summary.md
+          echo "" >> build_summary.md
+          
+          if [ "${{steps.compile.outputs.status}}" = "success" ]; then
+            echo "### ✅ Build Successful" >> build_summary.md
+            echo "Firmware: ${{env.FIREMWARE}}" >> build_summary.md
+          else
+            echo "### ❌ Build Failed" >> build_summary.md
+          fi
+
+      - name: Upload build summary
+        uses: actions/upload-artifact@v4
         with:
-          retain_days: 0
-          keep_minimum_runs: 4
+          name: build-summary-${{fromJSON(matrix.info).BOARD}}-${{fromJSON(matrix.info).BOARD_VARIANT}}
+          path: build_summary.md
+          retention-days: 7
