@@ -17,11 +17,10 @@ jobs:
     strategy:
       matrix:
         config:
-          # 配置列表：根据你的需要选择
           - board: ESP32_GENERIC_S3
             variant: SPIRAM_OCT
             flash: 8
-            display: ILI9341
+            display: ST7789
             indev: FT6X36
 
     steps:
@@ -48,108 +47,55 @@ jobs:
         run: |
           cd "${{ env.LVGL }}"
           
-          echo "📦 Building firmware..."
-          echo "Board: ${{ matrix.config.board }}"
-          echo "Variant: ${{ matrix.config.variant }}"
-          echo "Flash: ${{ matrix.config.flash }}MB"
-          echo "Display: ${{ matrix.config.display }}"
-          echo "Touch: ${{ matrix.config.indev }}"
+          echo "📦 Building for ${{ matrix.config.board }}..."
           
           # 构建命令
-          BUILD_CMD="python3 make.py esp32 \
+          CMD="python3 make.py esp32 \
             BOARD=${{ matrix.config.board }} \
             BOARD_VARIANT=${{ matrix.config.variant }} \
             --flash-size=${{ matrix.config.flash }} \
             DISPLAY=${{ matrix.config.display }}"
           
-          # 如果有触摸驱动，添加到命令
           if [ -n "${{ matrix.config.indev }}" ] && [ "${{ matrix.config.indev }}" != "none" ]; then
-            BUILD_CMD="$BUILD_CMD INDEV=${{ matrix.config.indev }}"
+            CMD="$CMD INDEV=${{ matrix.config.indev }}"
           fi
           
-          echo "🔨 Running: $BUILD_CMD"
-          $BUILD_CMD
+          echo "🔨 Running: $CMD"
+          $CMD
           
-          # 等待文件写入完成
-          sleep 3
+          sleep 2
           
-          echo "🔍 Searching for firmware file..."
+          # 查找固件文件
+          ORIG_FILE="build/lvgl_micropy_${{ matrix.config.board }}-${{ matrix.config.variant }}-${{ matrix.config.flash }}.bin"
           
-          # 在多个位置查找固件文件
-          FIRMWARE_PATH=""
-          
-          # 1. 首先在 build 目录查找
-          if [ -d "build" ]; then
-            echo "Checking build directory..."
-            FIRMWARE_FILE=$(ls -t build/*.bin 2>/dev/null | head -1)
-            if [ -n "$FIRMWARE_FILE" ] && [ -f "$FIRMWARE_FILE" ]; then
-              FIRMWARE_PATH="$FIRMWARE_FILE"
-              echo "✅ Found in build directory: $FIRMWARE_PATH"
-            fi
-          fi
-          
-          # 2. 如果没有找到，在 lib/micropython 目录查找
-          if [ -z "$FIRMWARE_PATH" ]; then
-            echo "Checking micropython directories..."
-            MPY_BUILD_DIR="lib/micropython/ports/esp32/build-${{ matrix.config.board }}-${{ matrix.config.variant }}"
-            if [ -d "$MPY_BUILD_DIR" ]; then
-              FIRMWARE_FILE=$(ls -t "$MPY_BUILD_DIR"/*.bin 2>/dev/null | head -1)
-              if [ -n "$FIRMWARE_FILE" ] && [ -f "$FIRMWARE_FILE" ]; then
-                FIRMWARE_PATH="$FIRMWARE_FILE"
-                echo "✅ Found in micropython directory: $FIRMWARE_PATH"
-              fi
-            fi
-          fi
-          
-          # 3. 使用 find 命令全局搜索
-          if [ -z "$FIRMWARE_PATH" ]; then
-            echo "Searching globally..."
-            FIRMWARE_FILE=$(find . -name "*.bin" -type f -newer /dev/null 2>/dev/null | grep -i "lvgl\|firmware" | head -1)
-            if [ -z "$FIRMWARE_FILE" ]; then
-              FIRMWARE_FILE=$(find . -name "*.bin" -type f | head -1)
-            fi
-            
-            if [ -n "$FIRMWARE_FILE" ] && [ -f "$FIRMWARE_FILE" ]; then
-              FIRMWARE_PATH="$FIRMWARE_FILE"
-              echo "✅ Found globally: $FIRMWARE_PATH"
-            fi
-          fi
-          
-          # 检查是否找到固件
-          if [ -z "$FIRMWARE_PATH" ] || [ ! -f "$FIRMWARE_PATH" ]; then
-            echo "❌ ERROR: Firmware file not found!"
-            echo "Current directory: $(pwd)"
-            echo "Directory contents:"
-            ls -la
-            echo "Build directory contents:"
+          if [ ! -f "$ORIG_FILE" ]; then
+            echo "❌ Firmware not found at: $ORIG_FILE"
+            echo "Available files in build/:"
             ls -la build/ 2>/dev/null || echo "No build directory"
             exit 1
           fi
           
-          # 创建最终输出目录
-          mkdir -p firmware_output
+          echo "✅ Found firmware: $ORIG_FILE"
           
-          # 生成新的文件名
+          # 准备新文件名
           TIMESTAMP=$(date +"%Y%m%d%H%M")
-          ORIG_NAME=$(basename "$FIRMWARE_PATH")
-          NEW_NAME="LVGL_MicroPython-${{ matrix.config.board }}_${{ matrix.config.variant }}_N${{ matrix.config.flash }}_${{ matrix.config.display }}"
+          NEW_FILE="LVGL_MicroPython-${{ matrix.config.board }}_${{ matrix.config.variant }}_N${{ matrix.config.flash }}_${{ matrix.config.display }}"
           
           if [ -n "${{ matrix.config.indev }}" ] && [ "${{ matrix.config.indev }}" != "none" ]; then
-            NEW_NAME="${NEW_NAME}_${{ matrix.config.indev }}"
+            NEW_FILE="${NEW_FILE}_${{ matrix.config.indev }}"
           fi
           
-          NEW_NAME="${NEW_NAME}-${TIMESTAMP}.bin"
+          NEW_FILE="${NEW_FILE}-${TIMESTAMP}.bin"
           
-          # 复制文件到输出目录
-          cp "$FIRMWARE_PATH" "firmware_output/$NEW_NAME"
+          # 直接重命名原始文件（最简单）
+          mv "$ORIG_FILE" "build/$NEW_FILE"
           
-          echo "📄 Original: $ORIG_NAME"
-          echo "📄 Renamed: $NEW_NAME"
-          echo "📏 File size: $(stat -c%s "firmware_output/$NEW_NAME") bytes"
+          echo "📄 Renamed to: $NEW_FILE"
+          echo "📏 File size: $(stat -c%s "build/$NEW_FILE") bytes"
           
-          # 设置输出变量
-          echo "FIRMWARE_PATH=firmware_output/$NEW_NAME" >> $GITHUB_ENV
-          echo "FIRMWARE_NAME=$NEW_NAME" >> $GITHUB_ENV
+          # 设置路径变量（相对于工作空间根目录）
+          echo "FIRMWARE_PATH=${{ env.LVGL }}/build/$NEW_FILE" >> $GITHUB_ENV
+          echo "FIRMWARE_NAME=$NEW_FILE" >> $GITHUB_ENV
           echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Upload firmware artifact
@@ -157,11 +103,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.FIRMWARE_NAME }}
-          path: ${{ env.FIRMWARE_PATH }}
+          path: ${{ env.FIRMWARE_PATH }}  # 使用绝对路径
           retention-days: 30
 
       - name: Create build info
-        if: always()
         run: |
           echo "## Build Information" > build_info.md
           echo "### Configuration" >> build_info.md
@@ -190,18 +135,6 @@ jobs:
       - name: Upload build info
         uses: actions/upload-artifact@v4
         with:
-          name: build-info-${{ matrix.config.board }}-${{ matrix.config.variant }}
+          name: build-info-${{ matrix.config.board }}
           path: build_info.md
           retention-days: 7
-
-  summary:
-    name: Build Summary
-    runs-on: ubuntu-22.04
-    needs: [build-firmware]
-    if: always()
-    steps:
-      - name: Summary
-        run: |
-          echo "🏁 LVGL MicroPython Build Completed"
-          echo "All firmware artifacts have been uploaded."
-          echo "Download them from the 'Artifacts' section."
