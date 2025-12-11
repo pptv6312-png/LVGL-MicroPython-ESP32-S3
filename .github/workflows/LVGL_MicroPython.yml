@@ -21,12 +21,6 @@ jobs:
       fail-fast: false
       matrix:
         info:
-          - '{ "BOARD": "ESP32_GENERIC",     "BOARD_VARIANT": "SPIRAM",      "FLASH": "4",   "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
-          - '{ "BOARD": "ESP32_GENERIC",     "BOARD_VARIANT": "SPIRAM",      "FLASH": "8",   "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
-          - '{ "BOARD": "ESP32_GENERIC",     "BOARD_VARIANT": "SPIRAM",      "FLASH": "16",  "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
-          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "4",   "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
-          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "8",   "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
-          - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "16",  "DISPLAY": "ST7789",  "INDEV":"FT6X36" }'
           - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "8",   "DISPLAY": "ILI9341", "INDEV":"FT6X36" }'
           - '{ "BOARD": "ESP32_GENERIC_S3",  "BOARD_VARIANT": "SPIRAM_OCT",  "FLASH": "16",  "DISPLAY": "ILI9341", "INDEV":"FT6X36" }'
 
