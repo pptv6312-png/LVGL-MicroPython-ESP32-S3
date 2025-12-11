@@ -20,7 +20,7 @@ jobs:
           - board: ESP32_GENERIC_S3
             variant: SPIRAM_OCT
             flash: 8
-            display: ST7789
+            display: ILI9341
             indev: FT6X36
 
     steps:
